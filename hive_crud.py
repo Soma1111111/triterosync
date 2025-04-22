@@ -92,18 +92,19 @@ class Hive:
 
         print(f"Data loaded into table '{self.table_name}'.")
 
-    def select_data(self, table_name='student_course'):
-        self.cursor.execute("SELECT * FROM " + table_name)
-        rows = self.cursor.fetchall()
-        print(f"Data from table '{table_name}':")
-        for row in rows:
-            print(row)
+    def select_data(self, student_id, course_id, table_name='student_course'):
+        query = f"SELECT student_id, course_id, grade FROM {table_name} WHERE student_id = %s AND course_id = %s"
+        self.cursor.execute(query, (student_id, course_id))
+        # rows = self.cursor.fetchall()
+        print(f"Data from table '{table_name}' for student_id='{student_id}' and course_id='{course_id}':")
+        # for row in rows:
+        #     print(row)
 
     def update_data(self, studentId, courseId, grade):
         self.load_data(studentId, courseId, grade)
 
     def destroy(self):
-        print("🧹 Cleaning up Hive connection and process...")
+        print("Cleaning up Hive connection and process...")
         try:
             if hasattr(self, 'cursor'):
                 self.cursor.close()
@@ -114,7 +115,6 @@ class Hive:
         if hasattr(self, 'hive_server_process') and self.hive_server_process:
             self.hive_server_process.terminate()
             print("HiveServer2 stopped.")
-
     def __del__(self):
         self.destroy()
 

@@ -1,3 +1,12 @@
+import mongo_crud as mc
+import postgre_crud as pc
+import hive_crud as hc
+import re
+
+mongo = mc.MongoDB("mydatabase","mycollection")
+hive = hc.Hive("student_course")
+postgre = pc.PostgreSQL
+
 def distribute_lines_correctly():
     # Step 1: Create/clear output files
     open("oplog.hiveql", "w").close()
@@ -9,20 +18,56 @@ def distribute_lines_correctly():
          open("oplog.hiveql", "a") as hive_out, \
          open("oplog.mongo", "a") as mongo_out, \
          open("oplog.sql", "a") as sql_out:
-
         # Step 3: Process each line
+        cnt=0
         for line in infile:
-            # Skip lines containing 'MERGE'
-            if "MERGE" in line:
-                continue
-
-            # Write to appropriate oplog file based on DB type
             if "HIVE" in line:
-                hive_out.write(line)
+                if("SET" in line):
+                    hive_out.write(line)
+                    match = re.search(r"SET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid,grade = match.groups()
+                        hive.update_data(sid,cid,grade)
+                        print(f"HIVE SET: studentID={sid}, Course-ID={cid}, grades={grade}")
+                elif("GET" in line):
+                    hive_out.write(line)
+                    match = re.search(r"GET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid = match.groups()
+                        hive.select_data("student_course",sid,cid)
+                else:
+                    pass
             elif "MONGODB" in line:
-                mongo_out.write(line)
+                if("SET" in line):
+                    mongo_out.write(line)
+                    match = re.search(r"SET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid,grade = match.groups()
+                        mongo.update_data(sid,cid,grade)
+                elif("GET" in line):
+                    mongo_out.write(line)
+                    match = re.search(r"GET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid = match.groups()
+                        mongo.select_data(sid,cid)
+                else:
+                    pass
+        
             elif "POSTGRESQL" in line:
-                sql_out.write(line)
+                if("SET" in line):
+                    sql_out.write(line)
+                    match = re.search(r"SET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid,grade = match.groups()
+                        postgre.update_data(sid,cid,grade)
+                elif("GET" in line):
+                    sql_out.write(line)
+                    match = re.search(r"GET\(\(([^,]+),([^)]+)\),\s*([A-F][+-]?)\)", line)
+                    if match:
+                        sid,cid = match.groups()
+                        mongo.select_data(sid,cid)
+                else:
+                    pass
 
 # Run the script
 if __name__ == "__main__":
