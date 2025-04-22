@@ -45,15 +45,22 @@ class MongoDB:
             else:
                 print("CSV is empty or not readable")
 
-    def select_all(self):
-        print("All documents in collection:")
-        for doc in self.collection.find():
+    def select_data(self, studentId, courseId):
+        print(f"Looking for: student-ID='{studentId}', course-id='{courseId}'")
+        query = {"student-ID": studentId, "course-id": courseId}
+        results = self.collection.find(query)
+
+        found_any = False
+        for doc in results:
+            found_any = True
             print(doc)
+
+        if not found_any:
+            print("No matching documents found.")
 
     def update_data(self, studentId, courseId, new_grade):
         print(f"Looking for: student-ID='{studentId}', course-id='{courseId}'")
         found = self.collection.find_one({"student-ID": studentId, "course-id": courseId})
-
         if found:
             print("Found document:", found)
             result = self.collection.update_one(

@@ -32,17 +32,22 @@ class PostgreSQL:
             print(f"Insert failed: {e}")
             self.conn.rollback()
 
-    def select_data(self):
+    def select_data(self, student_id, course_id):
         try:
-            self.cursor.execute(sql.SQL("SELECT * FROM {table};")
-                                .format(table=sql.Identifier(self.table_name)))
+            query = sql.SQL("SELECT grade FROM {table} WHERE student_id = %s AND course_id = %s;").format(
+                table=sql.Identifier(self.table_name)
+            )
+            self.cursor.execute(query, (student_id, course_id))
             rows = self.cursor.fetchall()
-            print(f"\n Data from table '{self.table_name}':")
-            for row in rows:
-                print(f"| {row[0]:<10} | {row[1]:<8} | {row[2] or 'NULL':<8} | {row[3] or 'NULL':<20} | {row[4]:<5} |")
-            print()
+            if rows:
+                print(f"\n Grade for student_id='{student_id}' and course_id='{course_id}':")
+                for row in rows:
+                    print(f"Grade: {row[0]}")
+                print()
+            else:
+                print(f"No grade found for student_id='{student_id}' and course_id='{course_id}'.\n")
         except Exception as e:
-            print(f" Select failed: {e}")
+            print(f"Select failed: {e}")
 
     def update_data(self, studentId, courseId, grade):
         try:
