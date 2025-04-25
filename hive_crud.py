@@ -93,12 +93,19 @@ class Hive:
         print(f"Data loaded into table '{self.table_name}'.")
 
     def select_data(self, student_id, course_id, table_name='student_course'):
-        query = f"SELECT student_id, course_id, grade FROM {table_name} WHERE student_id = %s AND course_id = %s"
-        self.cursor.execute(query, (student_id, course_id))
-        # rows = self.cursor.fetchall()
+        # Construct the query by directly inserting the values into the query string
+        query = f"SELECT student_id, course_id, grade FROM {table_name} WHERE student_id = '{student_id}' AND course_id = '{course_id}'"
+        
+        # Execute the query
+        self.cursor.execute(query)
+        
+        # Fetch the results (if any)
+        rows = self.cursor.fetchall()
+        
         print(f"Data from table '{table_name}' for student_id='{student_id}' and course_id='{course_id}':")
-        # for row in rows:
-        #     print(row)
+        for row in rows:
+            print(row)
+
 
     def update_data(self, studentId, courseId, grade):
         self.load_data(studentId, courseId, grade)
@@ -122,13 +129,9 @@ if __name__ == "__main__":
     hive_instance = Hive("student_course")
     hive_instance.create_table()
     hive_instance.insert_data("IMT2023001", "CSC101", "A")
-    hive_instance.select_data()
-    hive_instance.insert_data("IMT2023001", "CSC102", "B")
-    hive_instance.select_data()
+    hive_instance.select_data("IMT2023001", "CSC101")
     hive_instance.insert_data("IMT2023002", "CSC101", "C")
-    hive_instance.select_data()
+    hive_instance.select_data("IMT2023002", "CSC101")
     hive_instance.update_data("IMT2023001", "CSC101", "B")
-    hive_instance.select_data()
-    hive_instance.delete_data("IMT2023001", "CSC101")
-    hive_instance.select_data()
+    hive_instance.select_data("IMT2023001", "CSC101")
     hive_instance.__del__()
