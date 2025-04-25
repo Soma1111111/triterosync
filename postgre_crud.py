@@ -89,21 +89,33 @@ class PostgreSQL:
         self.destroy()
 
 if __name__ == "__main__":
+    # pg = PostgreSQL(
+    #     dbname="nosql",
+    #     user="soma",
+    #     password="soma1",
+    #     host="localhost",
+    #     port=5432,
+    #     table_name="grades"
+    # )
     pg = PostgreSQL(
-        dbname="nosql",
-        user="soma",
-        password="soma1",
+        dbname="mydb",
+        user="ketan1",
+        password="Arti@1982",
         host="localhost",
         port=5432,
         table_name="grades"
     )
+
     # pg.create_table()  # Now uncommented to ensure fresh table creation
     pg.insert_data("IMT2023001", "CSC101", "A")
     # pg.insert_data("IMT2023001", "CSC102", "B")
     # pg.insert_data("IMT2023002", "CSC101", "C")
-    # pg.select_data()
+    pg.select_data("IMT2023001", "CSC101")
     
     # Example updates and deletions
-    # pg.update_data("SID1033", "CSE016", "A+")
+    pg.update_data("SID1033", "CSE016", "A+")
+    pg.select_data("SID1033", "CSE016")
+    pg.update_data("SID1033", "CSE016", "B+")
+    pg.select_data("SID1033", "CSE016")
     # pg.delete_data("SID1033", "CSE016")
     # pg.select_data()

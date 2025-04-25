@@ -8,11 +8,18 @@ def create_grades_table():
     conn = None
     cursor = None
     try:
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="nosql",
+        #     user="soma",
+        #     password="soma1",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="nosql",
-            user="soma",
-            password="soma1",
+            database="mydb",
+            user="ketan1",
+            password="Arti@1982",
             port="5432"
         )
         cursor = conn.cursor()
@@ -39,19 +46,26 @@ def create_grades_table():
             conn.close()
 
 def fast_bulk_upload_csv(csv_path, table_name):
+    print("hello")
     """Performs a fast bulk upload of a CSV file to the specified table using PostgreSQL's COPY command."""
     conn = None
     cursor = None
     try:
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="nosql",
+        #     user="soma",
+        #     password="soma1",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="nosql",
-            user="soma",
-            password="soma1",
+            database="mydb",
+            user="ketan1",
+            password="Arti@1982",
             port="5432"
         )
         cursor = conn.cursor()
-        
         # Open the CSV and skip the header row
         with open(csv_path, 'r') as f:
             next(f)  # Skip header
@@ -62,7 +76,6 @@ def fast_bulk_upload_csv(csv_path, table_name):
                 columns=('student_id', 'course_id', 'roll_no', 'email_id', 'grade'),
                 null=''
             )
-
         conn.commit()
         print(f"COPY command completed for {csv_path} and data inserted into table '{table_name}'.")
     except Exception as e:
@@ -80,11 +93,18 @@ def list_tables():
     conn = None
     cursor = None
     try:
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="nosql",
+        #     user="soma",
+        #     password="soma1",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="nosql",
-            user="soma",
-            password="soma1",
+            database="mydb",
+            user="ketan1",
+            password="Arti@1982",
             port="5432"
         )
         cursor = conn.cursor()
@@ -112,7 +132,7 @@ if __name__ == "__main__":
     create_grades_table()
 
     # Step 2: Bulk upload CSV data into the 'grades' table.
-    csv_file = "student_course_grades.csv"  # Change this path if your CSV is located elsewhere.
+    csv_file = "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"  # Change this path if your CSV is located elsewhere.
     if os.path.exists(csv_file):
         fast_bulk_upload_csv(csv_file, "grades")
     else:

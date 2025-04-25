@@ -95,13 +95,12 @@ if __name__ == "__main__":
     mongo = MongoDB("mydatabase", "mycollection")
     # Test inserts
     mongo.insert_data("SID1036", "CSE016", "CRPC2ZW9", "crpc2zw9@university.edu", "A")
-    # Update a grade
-    mongo.update_data("SID1035", "CSE016", "A+")
+    mongo.select_data("SID1036", "CSE016")
     # Delete a document
-    mongo.delete_data("SID1035", "CSE016")
+    # mongo.delete_data("SID1035", "CSE016")
 
     # View all documents
-    mongo.select_all()
+    # mongo.select_all()
 
     # 🔌 Close connection
     mongo.destroy()

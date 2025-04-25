@@ -3,10 +3,18 @@ import postgre_crud as pc
 import hive_crud as hc
 import re
 
-mongo = mc.MongoDB("mydatabase","mycollection")
+# Initialize database connections
+mongo = mc.MongoDB("mydatabase", "mycollection")
 hive = hc.Hive("student_course")
-postgre = pc.PostgreSQL
-
+hive.create_table()
+postgre = pc.PostgreSQL(
+    dbname="mydb",
+    user="ketan1",
+    password="Arti@1982",
+    host="localhost",
+    port=5432,
+    table_name="grades"
+)
 def distribute_lines_correctly():
     # Step 1: Create/clear output files
     open("oplog.hiveql", "w").close()
