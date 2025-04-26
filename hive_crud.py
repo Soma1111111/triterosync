@@ -3,12 +3,14 @@ import subprocess
 import time
 import uuid
 import csv
+import re
+from datetime import datetime, timezone
 from pyhive import hive
-import uuid, csv, os
 
 class HiveCRUD:
-    def __init__(self, table_name="student_course"):
+    def __init__(self, table_name="student_course", oplog_path="oplog.hiveql"):
         self.table_name = table_name
+        self.oplog_path = oplog_path
         self._start_hiveserver()
         self._open_connection()
 
@@ -24,15 +26,12 @@ class HiveCRUD:
         time.sleep(10)
 
     def _open_connection(self):
-        # Connect to HiveServer2 (default port 10000)
         self.conn = hive.Connection(host="localhost", port=10000,
                                     username="ketan")
         self.cursor = self.conn.cursor()
 
     def create_table(self):
-        # Drop any existing table
         self.cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
-        # Create a flat table (no partitions)
         self.cursor.execute(f"""
             CREATE TABLE {self.table_name} (
                 student_id STRING,
@@ -48,99 +47,73 @@ class HiveCRUD:
         """)
         print(f"Table '{self.table_name}' created.")
 
-    def bulk_insert_from_csv(self, csv_file_path):
-        # Load entire CSV into Hive table (overwriting any existing data)
-        self.cursor.execute(f"""
-            LOAD DATA LOCAL INPATH '{csv_file_path}'
-            OVERWRITE INTO TABLE {self.table_name}
-        """)
-        print(f"Bulk data loaded from '{csv_file_path}' into '{self.table_name}'.")
-
-    def insert_data(self, studentId, courseId, rollNo, emailId, grade):
-        # Use INSERT INTO VALUES to add a single row directly
-        insert_query = f"""
-            INSERT INTO TABLE {self.table_name}
-            (student_id, course_id, roll_no, email_id, grade)
-            VALUES (
-              '{studentId}',
-              '{courseId}',
-              '{rollNo}',
-              '{emailId}',
-              '{grade}'
-            )
-        """
-        self.cursor.execute(insert_query)
-        print(f"Inserted row for ({studentId}, {courseId}) into '{self.table_name}'.")
-
     def select_data(self, studentId, courseId):
         qry = f"""
             SELECT grade
-            FROM {self.table_name}
-            WHERE student_id = '{studentId}'
-            AND course_id  = '{courseId}'
+              FROM {self.table_name}
+             WHERE student_id = '{studentId}'
+               AND course_id  = '{courseId}'
         """
         self.cursor.execute(qry)
-        result = self.cursor.fetchone()
-
-        if result:
-            return result[0]  # grade is the first (and only) column selected
-        else:
-            return None
-
+        res = self.cursor.fetchone()
+        return res[0] if res else None
 
     def update_data(self, studentId, courseId, new_grade):
-        # 1) Pull every row out of Hive
-        self.cursor.execute(f"""
-            SELECT student_id, course_id, roll_no, email_id, grade
-            FROM {self.table_name}
-        """)
-        all_rows = self.cursor.fetchall()
-        if not all_rows:
-            print("Table is empty—nothing to update.")
-            return
+        # overwrite via CSV trick
+        self.cursor.execute(f"SELECT student_id,course_id,roll_no,email_id,grade FROM {self.table_name}")
+        rows = self.cursor.fetchall()
+        tmp = f"/tmp/hive_update_{uuid.uuid4().hex}.csv"
+        with open(tmp,'w',newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['student_id','course_id','roll_no','email_id','grade'])
+            for sid,cid,roll,email,grade in rows:
+                if sid==studentId and cid==courseId:
+                    grade=new_grade
+                w.writerow([sid,cid,roll,email,grade])
+        self.cursor.execute(f"LOAD DATA LOCAL INPATH '{tmp}' OVERWRITE INTO TABLE {self.table_name}")
+        os.remove(tmp)
+        print(f"Hive: updated ({studentId},{courseId})→{new_grade}")
 
-        # 2) Write them (with the one grade changed) to a temp CSV
-        tmp_csv = f"/tmp/hive_update_{uuid.uuid4().hex}.csv"
-        with open(tmp_csv, 'w', newline='') as f:
-            writer = csv.writer(f)
-            # If you’ve set TBLPROPERTIES("skip.header.line.count"="1"),
-            # you can write a header row so Hive will skip it:
-            writer.writerow(['student_id','course_id','roll_no','email_id','grade'])
-            for sid, cid, roll, email, grade in all_rows:
-                if sid == studentId and cid == courseId:
-                    grade = new_grade
-                writer.writerow([sid, cid, roll, email, grade])
+    def _read_oplog(self):
+        entries=[]
+        with open(self.oplog_path) as f:
+            for L in f:
+                ts, prefix, body = L.strip().split(',',2)
+                dt = datetime.fromisoformat(ts)
+                entries.append((dt,prefix,body))
+        return entries
 
-        # 3) OVERWRITE the Hive table with the new CSV (fast metadata op)
-        self.cursor.execute(f"""
-            LOAD DATA LOCAL INPATH '{tmp_csv}'
-            OVERWRITE INTO TABLE {self.table_name}
-        """)
-        os.remove(tmp_csv)
-
-        print(f"Updated grade for ({studentId}, {courseId}) → '{new_grade}'.")
+    def merge_from(self, source):
+        # Last-Writer-Wins based on timestamps
+        src_entries = sorted(source._read_oplog(), key=lambda x:x[0])
+        tgt_entries = self._read_oplog()
+        # build dict of latest ts per key in target
+        latest={}  # (sid,cid)->ts
+        for ts,p,body in tgt_entries:
+            m = re.match(rf"{re.escape(self.__class__.__name__.replace('CRUD','').upper())}\.SET\(\(([^,]+),([^\)]+)\)", body)
+            if m:
+                key=(m.group(1),m.group(2))
+                latest[key]=max(latest.get(key,ts),ts)
+        # apply
+        for ts,prefix,body in src_entries:
+            m = re.match(rf"{source.__class__.__name__.replace('CRUD','').upper()}\.SET\(\(([^{''}]+),([^\)]+)\),([A-Za-z0-9+\-]+)\)", body)
+            # note: adjust regex if needed
+            m = re.match(rf"{source.__class__.__name__.replace('CRUD','').upper()}\.SET\(\(([^,]+),([^\)]+)\),([A-Za-z0-9+\-]+)\)", body)
+            if not m: continue
+            sid,cid,grade = m.groups()
+            key=(sid,cid)
+            if latest.get(key) is None or ts>latest[key]:
+                # apply
+                self.update_data(sid,cid,grade)
+                # log
+                with open(self.oplog_path,'a') as f:
+                    f.write(f"{ts.isoformat()},{prefix},{self.__class__.__name__.replace('CRUD','').upper()}.SET(({sid},{cid}),{grade})\n")
+                latest[key]=ts
+        print(f"Hive: merged from {source.__class__.__name__}")
 
     def destroy(self):
-        print("Closing Hive connection and stopping server…")
+        print("Closing Hive…")
         try:
-            self.cursor.close()
-            self.conn.close()
-        except:
-            pass
+            self.cursor.close(); self.conn.close()
+        except: pass
         self.hive_server.terminate()
-
-
-if __name__ == "__main__":
-    h = HiveCRUD("student_course")
-    h.create_table()
-    # # Bulk load CSV
-    h.bulk_insert_from_csv(
-        # "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"
-        "/mnt/c/Users/DELL/Documents/KrishWork/NOSQL/Project/triterosync/student_course_grades.csv"
-    )
-    # # Select
-    # h.select_data("SID1033", "CSE016")
-    # # Update
-    # h.update_data("SID1033", "CSE016", "A-")
-    # # Read back
-    # h.select_data("SID1033", "CSE016")
