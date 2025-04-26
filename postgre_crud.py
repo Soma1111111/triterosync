@@ -97,10 +97,18 @@ if __name__ == "__main__":
     #     port=5432,
     #     table_name="grades"
     # )
+    # pg = PostgreSQL(
+    #     dbname="mydb",
+    #     user="ketan1",
+    #     password="Arti@1982",
+    #     host="localhost",
+    #     port=5432,
+    #     table_name="grades"
+    # )
     pg = PostgreSQL(
-        dbname="mydb",
+        dbname="trifectanosql",
         user="ketan1",
-        password="Arti@1982",
+        password="1234567890",
         host="localhost",
         port=5432,
         table_name="grades"
