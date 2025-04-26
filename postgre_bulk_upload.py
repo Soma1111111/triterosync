@@ -15,11 +15,18 @@ def create_grades_table():
         #     password="soma1",
         #     port="5432"
         # )
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="mydb",
+        #     user="ketan1",
+        #     password="Arti@1982",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="mydb",
+            database="trifectanosql",
             user="ketan1",
-            password="Arti@1982",
+            password="1234567890",
             port="5432"
         )
         cursor = conn.cursor()
@@ -58,11 +65,18 @@ def fast_bulk_upload_csv(csv_path, table_name):
         #     password="soma1",
         #     port="5432"
         # )
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="mydb",
+        #     user="ketan1",
+        #     password="Arti@1982",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="mydb",
+            database="trifectanosql",
             user="ketan1",
-            password="Arti@1982",
+            password="1234567890",
             port="5432"
         )
         cursor = conn.cursor()
@@ -100,11 +114,18 @@ def list_tables():
         #     password="soma1",
         #     port="5432"
         # )
+        # conn = psycopg2.connect(
+        #     host="localhost",
+        #     database="mydb",
+        #     user="ketan1",
+        #     password="Arti@1982",
+        #     port="5432"
+        # )
         conn = psycopg2.connect(
             host="localhost",
-            database="mydb",
+            database="trifectanosql",
             user="ketan1",
-            password="Arti@1982",
+            password="1234567890",
             port="5432"
         )
         cursor = conn.cursor()
@@ -132,7 +153,8 @@ if __name__ == "__main__":
     create_grades_table()
 
     # Step 2: Bulk upload CSV data into the 'grades' table.
-    csv_file = "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"  # Change this path if your CSV is located elsewhere.
+    # csv_file = "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"  # Change this path if your CSV is located elsewhere.
+    csv_file = "/mnt/c/Users/DELL/Documents/KrishWork/NOSQL/Project/triterosync/student_course_grades.csv"  # Change this path if your CSV is located elsewhere.
     if os.path.exists(csv_file):
         fast_bulk_upload_csv(csv_file, "grades")
     else:
