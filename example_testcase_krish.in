@@ -1,0 +1,23 @@
+# 1) seed Hive
+1, HIVE.SET((SID1696,CSE001),C)
+
+# 2) try to pull SQL into Mongo (nothing yet in SQL)
+MONGODB.MERGE(POSTGRESQL)
+
+# 3) read from Mongo to confirm (should be “no matching documents”)
+2, MONGODB.GET(SID1696,CSE001)
+
+# 4) make a new grade in SQL
+3, POSTGRESQL.SET((SID1696,CSE001),H)
+
+# 5) pull SQL → Mongo
+MONGODB.MERGE(POSTGRESQL)
+
+# 6) read from Mongo (should now see B+)
+4, MONGODB.GET(SID1696,CSE001)
+
+# 7) propagate Hive → SQL (should overwrite with C from Hive)
+POSTGRESQL.MERGE(HIVE)
+
+# 8) read from SQL (should see C)
+5, POSTGRESQL.GET(SID1696,CSE001)

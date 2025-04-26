@@ -4,21 +4,21 @@ import csv
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
-# MongoDB Atlas URI
-uri = "mongodb+srv://kghungralekar1234:7NHqKqVhiLCvzwiP@cluster0.vs3p1dd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+uri = "mongodb+srv://krishdave011:1234567890@cluster0.z0tarda.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# Connect to MongoDB
+# Create a new client and connect to the server
 client = MongoClient(uri, server_api=ServerApi('1'))
 
-# Ping the server
+# Send a ping to confirm a successful connection
 try:
     client.admin.command('ping')
-    print("Connected to MongoDB Atlas")
+    print("Pinged your deployment. You successfully connected to MongoDB!")
 except Exception as e:
-    print("Connection failed:", e)
-    exit()
+    print(e)
 
 # Choose your database and collection
+
+
 db = client['mydatabase']  # replace with your DB name
 collection = db['mycollection']  # replace with your collection name
 
