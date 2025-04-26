@@ -26,7 +26,7 @@ class HiveCRUD:
     def _open_connection(self):
         # Connect to HiveServer2 (default port 10000)
         self.conn = hive.Connection(host="localhost", port=10000,
-                                    username=os.getlogin())
+                                    username="ketan")
         self.cursor = self.conn.cursor()
 
     def create_table(self):
@@ -73,20 +73,20 @@ class HiveCRUD:
         print(f"Inserted row for ({studentId}, {courseId}) into '{self.table_name}'.")
 
     def select_data(self, studentId, courseId):
-        # Fetch rows matching the given studentId and courseId
         qry = f"""
-            SELECT student_id, course_id, roll_no, email_id, grade
-              FROM {self.table_name}
-             WHERE student_id = '{studentId}'
-               AND course_id  = '{courseId}'
+            SELECT grade
+            FROM {self.table_name}
+            WHERE student_id = '{studentId}'
+            AND course_id  = '{courseId}'
         """
         self.cursor.execute(qry)
-        rows = self.cursor.fetchall()
-        if not rows:
-            print("No matching records found.")
+        result = self.cursor.fetchone()
+
+        if result:
+            return result[0]  # grade is the first (and only) column selected
         else:
-            for row in rows:
-                print(row)
+            return None
+
 
     def update_data(self, studentId, courseId, new_grade):
         # 1) Pull every row out of Hive
@@ -133,13 +133,14 @@ class HiveCRUD:
 if __name__ == "__main__":
     h = HiveCRUD("student_course")
     h.create_table()
-    # Bulk load CSV
+    # # Bulk load CSV
     h.bulk_insert_from_csv(
-        "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"
+        # "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"
+        "/mnt/c/Users/DELL/Documents/KrishWork/NOSQL/Project/triterosync/student_course_grades.csv"
     )
-    # Select
-    h.select_data("SID1033", "CSE016")
-    # Update
-    h.update_data("SID1033", "CSE016", "A-")
-    # Read back
-    h.select_data("SID1033", "CSE016")
+    # # Select
+    # h.select_data("SID1033", "CSE016")
+    # # Update
+    # h.update_data("SID1033", "CSE016", "A-")
+    # # Read back
+    # h.select_data("SID1033", "CSE016")
