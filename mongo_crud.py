@@ -1,96 +1,62 @@
 import csv
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from datetime import datetime, timezone
+import re
 
 class MongoDB:
-    def __init__(self, db_name='mydatabase', collection_name='mycollection'):
+    def __init__(self, db_name='mydatabase', collection_name='mycollection', oplog_path='oplog.mongo'):
         self.uri = "mongodb+srv://krishdave011:1234567890@cluster0.z0tarda.mongodb.net/?retryWrites=true&w=majority&tls=true&tlsInsecure=true"
-        self.db_name = db_name
-        self.collection_name = collection_name
+        self.db_name=db_name; self.collection_name=collection_name
+        self.oplog_path=oplog_path
         self.reconnect()
 
     def reconnect(self):
-        print("Connecting to MongoDB Atlas...")
-        self.client = MongoClient(self.uri, server_api=ServerApi('1'))
-        try:
-            self.client.admin.command('ping')
-            print("MongoDB: Connection successful.")
-        except Exception as e:
-            print("MongoDB: Connection failed on ping:", e)
-            exit()
+        self.client=MongoClient(self.uri, server_api=ServerApi('1'))
+        self.client.admin.command('ping')
+        self.db=self.client[self.db_name]; self.collection=self.db[self.collection_name]
 
-        self.db = self.client[self.db_name]
-        self.collection = self.db[self.collection_name]
+    def insert_data(self,studentId,courseId,rollNo,emailId,grade):
+        self.collection.insert_one({
+            'student-ID':studentId,'course-id':courseId,'roll no':rollNo,'email ID':emailId,'grade':grade
+        })
 
-    def ensure_connection(self):
-        try:
-            self.client.admin.command('ping')
-        except Exception as e:
-            print("MongoDB: Lost connection, reconnecting...")
-            self.reconnect()
+    def select_data(self,studentId,courseId):
+        doc=self.collection.find_one({'student-ID':studentId,'course-id':courseId})
+        return doc.get('grade') if doc else None
 
-    def insert_data(self, studentId, courseId, rollNo, emailId, grade):
-        self.ensure_connection()
-        doc = {
-            "student-ID": studentId,
-            "course-id": courseId,
-            "roll no": rollNo,
-            "email ID": emailId,
-            "grade": grade
-        }
-        existing = self.collection.find_one({"student-ID": studentId, "course-id": courseId})
-        if existing:
-            print("Document already exists based on studentID and courseID.")
-        else:
-            result = self.collection.insert_one(doc)
-            print(f"Inserted document with ID: {result.inserted_id}")
+    def update_data(self,studentId,courseId,grade):
+        self.collection.update_one({
+            'student-ID':studentId,'course-id':courseId
+        },{'$set':{'grade':grade}}, upsert=True)
 
-    def bulk_insert_from_csv(self, csv_file_path):
-        self.ensure_connection()
-        with open(csv_file_path, mode='r', encoding='utf-8-sig') as file:
-            reader = csv.DictReader(file)
-            data = list(reader)
-            if data:
-                result = self.collection.insert_many(data)
-                print(f"Inserted {len(result.inserted_ids)} records from CSV")
-            else:
-                print("CSV is empty or unreadable.")
+    def _read_oplog(self):
+        entries=[]
+        with open(self.oplog_path) as f:
+            for L in f:
+                ts,prefix,body=L.strip().split(',',2)
+                entries.append((datetime.fromisoformat(ts),prefix,body))
+        return entries
 
-    def select_data(self, studentId, courseId):
-        self.ensure_connection()
-        query = {"student-ID": studentId, "course-id": courseId}
-        result = self.collection.find_one(query)
-        if result:
-            return result.get("grade", None)
-        else:
-            return None
-
-    def update_data(self, studentId, courseId, new_grade):
-        self.ensure_connection()
-        print(f"Updating/inserting: student-ID='{studentId}', course-id='{courseId}'")
-        result = self.collection.update_one(
-            {"student-ID": studentId, "course-id": courseId},
-            {"$set": {"grade": new_grade}},
-            upsert=True
-        )
-        if result.matched_count > 0:
-            print(f"Updated grade to '{new_grade}' for ({studentId}, {courseId})")
-        elif result.upserted_id:
-            print(f"Inserted new document with upsert_id: {result.upserted_id}")
-
-    def delete_data(self, studentId, courseId):
-        self.ensure_connection()
-        result = self.collection.delete_one({"student-ID": studentId, "course-id": courseId})
-        if result.deleted_count > 0:
-            print(f"Deleted document for ({studentId}, {courseId})")
-        else:
-            print("No matching document found to delete.")
+    def merge_from(self, source):
+        src=sorted(source._read_oplog(), key=lambda x:x[0])
+        tgt=self._read_oplog()
+        latest={}
+        for ts,_,body in tgt:
+            m=re.match(rf"MONGODB\.SET\(\(([^,]+),([^\)]+)\)",body)
+            if m: latest[(m.group(1),m.group(2))]=max(latest.get((m.group(1),m.group(2)),ts),ts)
+        for ts,prefix,body in src:
+            m=re.match(r"POSTGRESQL\.SET\(\(([^,]+),([^\)]+)\),([A-Za-z0-9+\-]+)\)",body)
+            if not m: m=re.match(r"HIVE\.SET\(\(([^,]+),([^\)]+)\),([A-Za-z0-9+\-]+)\)",body)
+            if not m: continue
+            sid,cid,grade=m.groups(); key=(sid,cid)
+            if latest.get(key) is None or ts>latest[key]:
+                self.update_data(sid,cid,grade)
+                with open(self.oplog_path,'a') as f:
+                    f.write(f"{ts.isoformat()},{prefix},MONGODB.SET(({sid},{cid}),{grade})\n")
+                latest[key]=ts
+        print(f"Mongo: merged from {source.__class__.__name__}")
 
     def destroy(self):
-        if self.client:
-            self.client.close()
-            print("MongoDB connection closed.")
-
-if __name__ == "__main__":
-    mongo = MongoDB("mydatabase", "mycollection")
-    mongo.destroy()
+        self.client.close()
+        print("Mongo closed.")
