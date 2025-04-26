@@ -107,11 +107,10 @@ if __name__ == "__main__":
     )
 
     # pg.create_table()  # Now uncommented to ensure fresh table creation
-    pg.insert_data("IMT2023001", "CSC101", "A")
+    # pg.insert_data("IMT2023001", "CSC101", "A")
     # pg.insert_data("IMT2023001", "CSC102", "B")
     # pg.insert_data("IMT2023002", "CSC101", "C")
     pg.select_data("IMT2023001", "CSC101")
-    
     # Example updates and deletions
     pg.update_data("SID1033", "CSE016", "A+")
     pg.select_data("SID1033", "CSE016")

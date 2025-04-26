@@ -94,7 +94,9 @@ class MongoDB:
 if __name__ == "__main__":
     mongo = MongoDB("mydatabase", "mycollection")
     # Test inserts
-    mongo.insert_data("SID1036", "CSE016", "CRPC2ZW9", "crpc2zw9@university.edu", "A")
+    # mongo.insert_data("SID1036", "CSE016", "CRPC2ZW9", "crpc2zw9@university.edu", "A")
+    mongo.select_data("SID1036", "CSE016")
+    mongo.update_data("SID1036", "CSE016","F")
     mongo.select_data("SID1036", "CSE016")
     # Delete a document
     # mongo.delete_data("SID1035", "CSE016")
