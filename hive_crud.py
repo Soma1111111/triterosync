@@ -1,137 +1,145 @@
-#this does bulk upload as well as crud operations for hive
-
 import os
 import subprocess
 import time
-from pyhive import hive
-import csv
 import uuid
+import csv
+from pyhive import hive
+import uuid, csv, os
 
-class Hive:
-    table_name = ""
-    temp_table = ""
-    def __init__(self, table_name):
+class HiveCRUD:
+    def __init__(self, table_name="student_course"):
         self.table_name = table_name
-        self.temp_table = table_name + "_temp"
+        self._start_hiveserver()
+        self._open_connection()
+
+    def _start_hiveserver(self):
         hive_home = os.environ.get('HIVE_HOME')
         if not hive_home:
-            print("HIVE_HOME is not set.")
-            exit(1)
-        print(f"HIVE_HOME is set to: {hive_home}")
-        hive_server_cmd = os.path.join(hive_home, "bin", "hiveserver2")
-        print("Starting HiveServer2...")
-        self.hive_server_process = subprocess.Popen(
-            hive_server_cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            raise RuntimeError("HIVE_HOME is not set.")
+        cmd = os.path.join(hive_home, "bin", "hiveserver2")
+        print("Starting HiveServer2…")
+        self.hive_server = subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-
         time.sleep(10)
 
-        try:
-            self.conn = hive.Connection(host="localhost", port=10000, username="ketan")
-            self.cursor = self.conn.cursor()
-            self.cursor.execute("SET hive.exec.dynamic.partition=true")
-            self.cursor.execute("SET hive.exec.dynamic.partition.mode=nonstrict")
-        except Exception as e:
-            print(f"Error connecting to Hive: {e}")
-            self.destroy()
+    def _open_connection(self):
+        # Connect to HiveServer2 (default port 10000)
+        self.conn = hive.Connection(host="localhost", port=10000,
+                                    username=os.getlogin())
+        self.cursor = self.conn.cursor()
 
     def create_table(self):
+        # Drop any existing table
         self.cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
+        # Create a flat table (no partitions)
         self.cursor.execute(f"""
             CREATE TABLE {self.table_name} (
-                grade STRING
+                student_id STRING,
+                course_id  STRING,
+                roll_no    STRING,
+                email_id   STRING,
+                grade      STRING
             )
-            PARTITIONED BY (student_id STRING, course_id STRING)
             ROW FORMAT DELIMITED
             FIELDS TERMINATED BY ','
             STORED AS TEXTFILE
+            TBLPROPERTIES ("skip.header.line.count"="1")
         """)
-        print(f"Partitioned table '{self.table_name}' created.")
+        print(f"Table '{self.table_name}' created.")
 
-    def load_data(self, studentId, courseId, grade):
-        temp_filename = f"temp_{uuid.uuid4().hex}.csv"
-        try:
-            with open(temp_filename, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow([grade])  
-            load_query = f"""
-                LOAD DATA LOCAL INPATH '{os.path.abspath(temp_filename)}' 
-                OVERWRITE INTO TABLE {self.table_name}
-                PARTITION (student_id='{studentId}', course_id='{courseId}')
-            """
-            self.cursor.execute(load_query)
-        finally:
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
+    def bulk_insert_from_csv(self, csv_file_path):
+        # Load entire CSV into Hive table (overwriting any existing data)
+        self.cursor.execute(f"""
+            LOAD DATA LOCAL INPATH '{csv_file_path}'
+            OVERWRITE INTO TABLE {self.table_name}
+        """)
+        print(f"Bulk data loaded from '{csv_file_path}' into '{self.table_name}'.")
 
-        print(f"Data loaded into table '{self.table_name}'.")
+    def insert_data(self, studentId, courseId, rollNo, emailId, grade):
+        # Use INSERT INTO VALUES to add a single row directly
+        insert_query = f"""
+            INSERT INTO TABLE {self.table_name}
+            (student_id, course_id, roll_no, email_id, grade)
+            VALUES (
+              '{studentId}',
+              '{courseId}',
+              '{rollNo}',
+              '{emailId}',
+              '{grade}'
+            )
+        """
+        self.cursor.execute(insert_query)
+        print(f"Inserted row for ({studentId}, {courseId}) into '{self.table_name}'.")
 
-
-    def insert_data(self, studentId, courseId, grade):
-        self.load_data(studentId, courseId, grade)
-
-    def delete_data(self, studentId, courseId):
-        temp_filename = f"temp_{uuid.uuid4().hex}.csv"
-
-        try:
-            with open(temp_filename, mode='w', newline='') as file:
-                pass
-            
-            load_query = f"""
-                LOAD DATA LOCAL INPATH '{os.path.abspath(temp_filename)}' 
-                OVERWRITE INTO TABLE {self.table_name}
-                PARTITION (student_id='{studentId}', course_id='{courseId}')
-            """
-            self.cursor.execute(load_query)
-        
-        finally:
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
-
-        print(f"Data loaded into table '{self.table_name}'.")
-
-    def select_data(self, student_id, course_id, table_name='student_course'):
-        # Construct the query by directly inserting the values into the query string
-        query = f"SELECT student_id, course_id, grade FROM {table_name} WHERE student_id = '{student_id}' AND course_id = '{course_id}'"
-        
-        # Execute the query
-        self.cursor.execute(query)
-        
-        # Fetch the results (if any)
+    def select_data(self, studentId, courseId):
+        # Fetch rows matching the given studentId and courseId
+        qry = f"""
+            SELECT student_id, course_id, roll_no, email_id, grade
+              FROM {self.table_name}
+             WHERE student_id = '{studentId}'
+               AND course_id  = '{courseId}'
+        """
+        self.cursor.execute(qry)
         rows = self.cursor.fetchall()
-        
-        print(f"Data from table '{table_name}' for student_id='{student_id}' and course_id='{course_id}':")
-        for row in rows:
-            print(row)
+        if not rows:
+            print("No matching records found.")
+        else:
+            for row in rows:
+                print(row)
 
+    def update_data(self, studentId, courseId, new_grade):
+        # 1) Pull every row out of Hive
+        self.cursor.execute(f"""
+            SELECT student_id, course_id, roll_no, email_id, grade
+            FROM {self.table_name}
+        """)
+        all_rows = self.cursor.fetchall()
+        if not all_rows:
+            print("Table is empty—nothing to update.")
+            return
 
-    def update_data(self, studentId, courseId, grade):
-        self.load_data(studentId, courseId, grade)
+        # 2) Write them (with the one grade changed) to a temp CSV
+        tmp_csv = f"/tmp/hive_update_{uuid.uuid4().hex}.csv"
+        with open(tmp_csv, 'w', newline='') as f:
+            writer = csv.writer(f)
+            # If you’ve set TBLPROPERTIES("skip.header.line.count"="1"),
+            # you can write a header row so Hive will skip it:
+            writer.writerow(['student_id','course_id','roll_no','email_id','grade'])
+            for sid, cid, roll, email, grade in all_rows:
+                if sid == studentId and cid == courseId:
+                    grade = new_grade
+                writer.writerow([sid, cid, roll, email, grade])
+
+        # 3) OVERWRITE the Hive table with the new CSV (fast metadata op)
+        self.cursor.execute(f"""
+            LOAD DATA LOCAL INPATH '{tmp_csv}'
+            OVERWRITE INTO TABLE {self.table_name}
+        """)
+        os.remove(tmp_csv)
+
+        print(f"Updated grade for ({studentId}, {courseId}) → '{new_grade}'.")
 
     def destroy(self):
-        print("Cleaning up Hive connection and process...")
+        print("Closing Hive connection and stopping server…")
         try:
-            if hasattr(self, 'cursor'):
-                self.cursor.close()
-            if hasattr(self, 'conn'):
-                self.conn.close()
+            self.cursor.close()
+            self.conn.close()
         except:
             pass
-        if hasattr(self, 'hive_server_process') and self.hive_server_process:
-            self.hive_server_process.terminate()
-            print("HiveServer2 stopped.")
-    def __del__(self):
-        self.destroy()
+        self.hive_server.terminate()
+
 
 if __name__ == "__main__":
-    hive_instance = Hive("student_course")
-    hive_instance.create_table()
-    hive_instance.insert_data("IMT2023001", "CSC101", "A")
-    hive_instance.select_data("IMT2023001", "CSC101")
-    hive_instance.insert_data("IMT2023002", "CSC101", "C")
-    hive_instance.select_data("IMT2023002", "CSC101")
-    hive_instance.update_data("IMT2023001", "CSC101", "B")
-    hive_instance.select_data("IMT2023001", "CSC101")
-    hive_instance.__del__()
+    h = HiveCRUD("student_course")
+    h.create_table()
+    # Bulk load CSV
+    h.bulk_insert_from_csv(
+        "/home/ketan/Desktop/NoSQL_Project1/triterosync/student_course_grades.csv"
+    )
+    # Select
+    h.select_data("SID1033", "CSE016")
+    # Update
+    h.update_data("SID1033", "CSE016", "A-")
+    # Read back
+    h.select_data("SID1033", "CSE016")

@@ -76,7 +76,7 @@ def distribute_lines_correctly():
                         mongo.select_data(sid,cid)
                 else:
                     pass
-
+                
 # Run the script
 if __name__ == "__main__":
     distribute_lines_correctly()
