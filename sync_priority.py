@@ -13,15 +13,11 @@ CONNECTORS = {'HIVE':hive,'POSTGRESQL':postgre,'MONGODB':mongo}
 # clear logs
 for c in CONNECTORS.values(): open(c.oplog_path,'w').close()
 
-# common log writer
-from datetime import datetime, timezone
 
-def now_iso(): return datetime.now(timezone.utc).isoformat()
 
 def write_log(conn_name,prefix,op,ts=None):
-    if ts is None: ts=now_iso()
     path=CONNECTORS[conn_name].oplog_path
-    with open(path,'a') as f: f.write(f"{ts},{prefix},{op}\n")
+    with open(path,'a') as f: f.write(f"{prefix},{op}\n")
 
 # dispatch SET/GET
 
@@ -37,9 +33,9 @@ def process_get(prefix,dbn,sid,cid):
 
 # merge simply calls connector.merge_from()
 
-def perform_merge(src_name,tgt_name):
+def perform_merge3(src_name,tgt_name):
     src=CONNECTORS[src_name]; tgt=CONNECTORS[tgt_name]
-    tgt.merge_from(src)
+    tgt.merge_from3(src)
 
 # main parser
 
@@ -49,7 +45,7 @@ def main(path):
         if not line or line.startswith('#'): continue
         m=re.match(r"^(\w+)\.MERGE\((\w+)\)$",line)
         if m:
-            tgt,src=m.groups(); perform_merge(src,tgt)
+            tgt,src=m.groups(); perform_merge3(src,tgt)
             continue
         if ',' in line:
             pre,cmd=[x.strip() for x in line.split(',',1)]
