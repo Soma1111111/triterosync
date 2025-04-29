@@ -1,0 +1,17 @@
+# Seed
+1, POSTGRESQL.SET((SID3003,CSE003),B)
+
+# Merge once
+MONGODB.MERGE(POSTGRESQL)
+
+# Fetch
+2, MONGODB.GET(SID3003,CSE003)
+
+# Merge again (should not change anything)
+MONGODB.MERGE(POSTGRESQL)
+
+# Merge again (still same)
+MONGODB.MERGE(POSTGRESQL)
+
+# Fetch
+2, MONGODB.GET(SID3003,CSE003)
