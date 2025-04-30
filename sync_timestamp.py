@@ -61,6 +61,6 @@ def main(path):
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-        print("Usage: sync_krish.py <cmdfile>"); sys.exit(1)
+        print("Usage: sync_timestamp.py <cmdfile>"); sys.exit(1)
     main(sys.argv[1])
 
