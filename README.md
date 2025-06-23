@@ -2,16 +2,49 @@
 
 ## Overview
 
-**TriteroSync** is a project that demonstrates data integration and synchronization across heterogeneous systems. The repository provides a framework for synchronizing data across multiple platforms, including MongoDB, and any two or more from Pig, Hive, PostgreSQL, or MySQL.
+**TriteroSync** is a framework for synchronizing and integrating data across heterogeneous systems using only operation logs (oplogs). The implementation in this repository demonstrates synchronization across **Hive**, **PostgreSQL**, and **MongoDB**, providing robust merge strategies and conflict resolution mechanisms.
 
 ## Features
 
-- **Data Synchronization:** Synchronize redundant data loaded onto three or more heterogeneous data systems.
-- **Abstracted Operations:** Each system implements independent methods for reading (`get()`) and updating (`set()`) data.
-- **Operation Logging:** Every operation is logged in an operation log (oplog) for each system, making the logs generic and applicable to any table.
-- **Merge Functionality:** Each system defines an abstract `merge()` method that takes the name of another system as an argument and uses only that system's operation log to synchronize data (without direct access to its data).
-- **Test Case Driven:** Synchronization logic can be tested using a sequence of operations and merge commands provided via a test case file.
-- **Emphasizes Properties:** The design considers mathematical properties of merge operations such as associativity, commutativity, idempotency, and system convergence.
+- **Multiple Databases Supported:** 
+  - Hive
+  - PostgreSQL
+  - MongoDB
+
+- **Operation Logging:** 
+  - Each system maintains its own append-only, auditable operation log (oplog) for all `SET` and `GET` operations.
+
+- **Abstracted CRUD Operations:** 
+  - Each system exposes methods for reading (`get()`) and updating (`set()`) data.
+
+- **Merge Functionality:** 
+  - Each system implements a `merge_from(source)` method, synchronizing its state with another system using only oplogs.
+  - Systems exchange only logs, never data directly (loose coupling).
+
+## Merge Logics
+
+There are **three merge strategies** implemented, each building on the Last-Writer-Wins (LWW) protocol:
+
+| Variant            | Conflict Resolution Strategy                                                                 |
+|--------------------|---------------------------------------------------------------------------------------------|
+| `merge_from`       | **LWW**: Retain the value with the latest timestamp for each key.                           |
+| `merge_from2`      | **Grade-based**: In case of conflict, the higher grade is retained (e.g., F < D < C < B < A).|
+| `merge_from3`      | **Server-priority**: Each system is assigned a priority (MongoDB: 1, PostgreSQL: 2, Hive: 3). On conflict, the value from the highest-priority system is retained. |
+
+### General Merge Workflow
+
+1. **Read Source Oplog:** Load and sort the source system’s oplog by timestamp (oldest first).
+2. **Read Target Oplog:** Load the target system’s oplog.
+3. **Build “Latest” Map:** For each key (e.g., (id1, id2)), record the latest timestamp seen in the target oplog.
+4. **Compare & Apply:** For each source entry:
+    - If its timestamp is greater than the stored timestamp for that key (or if the key is new), apply the update, log it with the original timestamp, and update the map.
+    - Otherwise, skip the entry.
+5. **Finalize:** The target’s database and oplog now reflect the latest updates.
+
+**Properties:**  
+- Ensures Last-Writer-Wins (LWW) semantics per key.
+- Append-only, auditable logs.
+- Conflict resolution is strategy-dependent (timestamp, grade, or server priority).
 
 ## Sample Operation Log Format
 
@@ -20,59 +53,59 @@
 2, GET(KEY1,KEY2)
 ```
 
-Each operation is timestamped and recorded for replay and synchronization.
-
 ## Example Test Case
 
 ```
-1, SYSTEM1.SET((KEY1,KEY2), VALUE)
-2, SYSTEM2.GET(KEY1,KEY2)
-3, SYSTEM3.SET((KEY3,KEY4), VALUE)
-SYSTEM1.MERGE(SYSTEM2)
-SYSTEM2.MERGE(SYSTEM3)
+1, HIVE.SET((KEY1,KEY2), VALUE)
+2, POSTGRE.GET(KEY1,KEY2)
+1, MONGO.SET((KEY3,KEY4), VALUE)
+HIVE.MERGE(POSTGRE)
+POSTGRE.MERGE(MONGO)
 ```
-- SET and GET operations are ordered per system by timestamp/counter.
-- MERGE commands synchronize states using oplogs only and are executed in the given order.
+- MERGE commands synchronize states using oplogs only.
+
+## Directory Structure
+
+```
+├── .gitignore
+├── .~lock.student_course_grades.csv#
+├── Associativity.in
+├── Commutativity.in
+├── Idempotency.in
+├── README.md
+├── Sync_databases.py
+├── example_testcase2.in
+├── example_testcase_max.in
+├── example_testcase_priority.in
+├── example_testcase_timestamp.in
+├── hive_bulk_upload_crud.py
+├── hive_crud.py
+├── mongo_crud.py
+├── mongodb_database.py
+├── oplog.hiveql
+├── oplog.mongo
+├── oplog.sql
+├── postgre_bulk_upload.py
+├── postgre_crud.py
+├── student_course_grades.csv
+├── sync_max.py                # Server-priority based merge
+├── sync_priority.py           # Grade-based merge
+├── sync_timestamp.py          # LWW (timestamp) based merge
+├── sync_timestamp_global.py
+├── test_case_generator.py
+```
 
 ## Usage
 
-1. Prepare your heterogeneous systems (MongoDB and two or more of Pig, Hive, PostgreSQL/MySQL).
-2. Load redundant data into each system.
-3. Ensure each system maintains its own oplog of all SET/GET operations.
-4. Use the abstract `merge()` method to synchronize data between systems using only their oplogs.
-5. Provide a test case input file with a sequence of SET, GET, and MERGE commands to drive the main program.
-
-## Design Guidelines
-
-- Focus on simple, maintainable solutions.
-- No need for multithreading or parallelism.
-- GUI is optional; command-line is sufficient.
-- The codebase should include:
-  - Source code for each system and the main synchronization logic
-  - Sample oplogs and test cases
-  - Documentation/comments explaining the merge logic and oplog design
-
-## Sample Directory Structure
-
-```
-├── src/
-│   ├── mongo.py
-│   ├── hive.py
-│   ├── sql.py
-│   ├── pig.py
-│   └── common/
-├── logs/
-│   ├── oplog.mongo
-│   ├── oplog.hive
-│   └── oplog.sql
-├── testcase.in
-├── README.md
-```
+1. **Setup:** Ensure data is loaded redundantly across Hive, PostgreSQL, and MongoDB.
+2. **Operation Logging:** Each CRUD operation is logged in the system’s oplog.
+3. **Merging:** Use one of the provided merge scripts (`sync_timestamp.py`, `sync_priority.py`, `sync_max.py`) to synchronize data across systems according to your desired conflict resolution strategy.
+4. **Testing:** Use provided test case files to validate merge correctness and properties (associativity, commutativity, idempotency).
 
 ## Contribution
 
-- Contributions are welcome. Please document your changes and ensure your code is clear and maintainable.
+- Contributions are welcome! Please document any changes and ensure clear, maintainable code.
 
 ---
 
-*For more details, see the source code and comments.*
+*For more implementation details, refer to the source code and comments.*
