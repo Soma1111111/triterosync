@@ -95,6 +95,99 @@ POSTGRE.MERGE(MONGO)
 ├── test_case_generator.py
 ```
 
+## Test Cases for Merge Properties
+
+This project includes comprehensive test cases to validate the correctness and mathematical properties of the merge operations across heterogeneous systems. The properties are demonstrated using the timestamp-based merge approach, and the test cases are included for the following key properties:
+
+### 1. Associativity
+
+We verify associativity by testing if the order of merges does not affect the final result:  
+\[(A \parallel B) \parallel C = A \parallel (B \parallel C)\]  
+where \(\parallel\) denotes the merge operation.
+
+**Test Setup:**
+- **A:** Hive
+- **B:** PostgreSQL
+- **C:** MongoDB
+
+**Test Case Example:**
+```plaintext
+# Initial Seeding
+1, HIVE.SET((SID001,CSE001),C)
+1, POSTGRESQL.SET((SID001,CSE001),A)
+1, MONGO.SET((SID001,CSE001),B)
+
+# Test associativity
+HIVE.MERGE(POSTGRESQL)
+HIVE.MERGE(MONGODB)
+```
+- The outputs for both \((A \parallel B) \parallel C\) and \(A \parallel (B \parallel C)\) are compared.
+- In the example, both approaches yield the same final grade, demonstrating associativity.
+
+---
+
+### 2. Commutativity
+
+We verify commutativity by checking if merging A into B yields the same result as merging B into A:
+\[(A \parallel B) = (B \parallel A)\]
+
+**Test Setup:**
+- **A:** Hive
+- **B:** PostgreSQL
+
+**Test Case Example:**
+```plaintext
+HIVE.MERGE(POSTGRESQL)
+POSTGRESQL.MERGE(HIVE)
+```
+- The test confirms that merging in either order results in the same latest value for the key.
+
+---
+
+### 3. Idempotency
+
+We verify idempotency by ensuring that applying the same merge operation multiple times does not change the result after the first application.
+
+**Test Setup:**
+- Update a row in PostgreSQL, then merge into MongoDB multiple times.
+
+**Test Case Example:**
+```plaintext
+# Seed
+1, POSTGRESQL.SET((SID3003,CSE003),B)
+
+# Merge once
+MONGODB.MERGE(POSTGRESQL)
+
+# Fetch
+2, MONGODB.GET(SID3003,CSE003)
+
+# Merge again (should not change anything)
+MONGODB.MERGE(POSTGRESQL)
+
+# Merge again (still same)
+MONGODB.MERGE(POSTGRESQL)
+
+# Fetch
+2, MONGODB.GET(SID3003,CSE003)
+```
+- The grade remains unchanged after the first merge, demonstrating idempotency.
+
+---
+
+### Test Case Files
+
+- Each property (associativity, commutativity, idempotency) has a corresponding `.in` file (e.g., `Associativity.in`, `Commutativity.in`, `Idempotency.in`) containing the full sequence of operations and merges to run.
+- Run the test with the appropriate merge script (e.g., `python sync_timestamp.py Associativity.in`).
+
+### Summary
+
+- **Associativity:** Order of merges does not affect result.
+- **Commutativity:** Merging in either direction yields the same result.
+- **Idempotency:** Reapplying merge has no effect after the first application.
+
+These tests and their outputs are included in the repository for full reproducibility and validation.
+
 ## Usage
 
 1. **Setup:** Ensure data is loaded redundantly across Hive, PostgreSQL, and MongoDB.
